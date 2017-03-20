@@ -75,7 +75,7 @@ class model_selection():
 		self.calculate_mean_slope()
 		filtered_model_list = []
 		for model in self.model_list:
-			if model.params[1] > self.mean_slope and model.rsquared> self.mean_rsquare:
+			if model.params[1] > self.mean_slope and model.params[1] >  0 and model.rsquared> self.mean_rsquare:
 				filtered_model_list.append(model)
 		return filtered_model_list
 
