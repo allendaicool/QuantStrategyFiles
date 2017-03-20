@@ -3,11 +3,15 @@ import pandas as pd
 import pickle
 import statsmodels.api as sm
 from sklearn import preprocessing
-import pickle
+
+#################################
 
 preprocess_data = True
 #data starts from 2016-03-01
 count = 1
+
+
+##################################
 class stock_attribute_model():
     def __init__(self, code,params, rsquared, pvalues, initialStartIndex):
         self.params = params
@@ -15,8 +19,10 @@ class stock_attribute_model():
         self.rsquared = rsquared
         self.pvalues = pvalues
         self.startIndex = initialStartIndex
-        
-        
+
+####################################################################
+
+
 class linear_regression_model():
     def __init__(self):
         self.train_X = []
@@ -43,6 +49,8 @@ class linear_regression_model():
         results = model.fit()
         # print(results.summary())
         return results.params, results.rsquared, results.pvalues
+
+####################################################################
 
 class model_selection():
 	def __init__(self,model_List):
@@ -81,6 +89,7 @@ class model_selection():
 				filtered_model_list.append(model.code)
 		return filtered_model_list
 
+####################################################################
 class model_factory():
 	def __init__(self,stockList,data):
 		self.stockList = stockList
@@ -102,51 +111,42 @@ class model_factory():
 			model_list.append(stock_attribute_model_obj)
 		return model_list
 
+
+####################################################################
+
 class save_model():
-	def __init__(self, model_list):
-		self.model_list = model_list
-		pass
+    def __init__(self, model_list):
+        self.model_list = model_list
+        pass
+    def write_file(self,code_file,params_file,startIndexFile):
+        codeList = []
+        for model in self.model_list:
+            codeList.append(model.code)
+        print ('A length is ', len(codeList))
+        write_file(code_file, str(codeList), append=False)
+        paramList = []
+        for model in self.model_list:
+            paramList.append(model.params)
+        print ('B length is ', len(paramList))
+        write_file(params_file, str(paramList), append=False)
+        startIndexList = []
+        for model in self.model_list:
+            startIndexList.append(model.startIndex)
+            print ('C length is ', len(startIndexList))
+        write_file(startIndexFile, str(startIndexList), append=False)
 
-	def write_file(self,code_file,params_file,startIndexFile):
-		with open(code_file, 'wb') as output:
-			codeList = []
-			for model in self.model_list:
-				codeList.append(model.code)
-			print ('A length is ', len(codeList))
-			pickle.dump(codeList, output, pickle.HIGHEST_PROTOCOL)
-		with open(params_file, 'wb') as output:
-			paramList = []
-			for model in self.model_list:
-				paramList.append(model.params)
-			print ('B length is ', len(paramList))
+####################################################################
+data = pd.read_csv('linReg_price.csv', low_memory=False)
 
-			pickle.dump(paramList, output, pickle.HIGHEST_PROTOCOL)
-		with open(startIndexFile, 'wb') as output:
-			startIndexList = []\
+data.drop(data.columns[0], axis = 1, inplace=True)
+stock_list = list(data.columns)
+first_column = data.iloc[:,:1]
 
-			for model in self.model_list:
-				startIndexList.append(model.startIndex)
-			print ('C length is ', len(startIndexList))
-
-			pickle.dump(startIndexList, output, pickle.HIGHEST_PROTOCOL)
-
-
-
-if __name__ == "__main__":
-	data = pd.read_csv('/Users/ydai/Desktop/JointQuant/linearReg_OnPrice/linReg_price.csv', low_memory=False)
-
-	data.drop(data.columns[0], axis = 1, inplace=True)
-	stock_list = list(data.columns)
-	first_column = data.iloc[:,:1]
-
-	model_factory_obj = model_factory(stock_list,data)
-	model_list = model_factory_obj.create_model_list()
-	model_selection_obj = model_selection(model_list)
-	model_selected_list = model_selection_obj.filtered_model_list()
-	save_model_obj = save_model(model_selected_list)
-	save_model_obj.write_file('/Users/ydai/Desktop/JointQuant/linearReg_OnPrice/linReg_data_code.pkl', \
-		'/Users/ydai/Desktop/JointQuant/linearReg_OnPrice/linReg_data_params.pkl', '/Users/ydai/Desktop/JointQuant/linearReg_OnPrice/linReg_data_StartIndex.pkl')
-
-
+model_factory_obj = model_factory(stock_list,data)
+model_list = model_factory_obj.create_model_list()
+model_selection_obj = model_selection(model_list)
+model_selected_list = model_selection_obj.filtered_model_list()
+save_model_obj = save_model(model_selected_list)
+save_model_obj.write_file('linReg_data_code', 'linReg_data_params', 'linReg_data_StartIndex')
 
 
