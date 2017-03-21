@@ -6,19 +6,20 @@ from sklearn import preprocessing
 
 #################################
 
-preprocess_data = True
+preprocess_data = False
 #data starts from 2016-03-01
 count = 1
 
 
 ##################################
 class stock_attribute_model():
-    def __init__(self, code,params, rsquared, pvalues, initialStartIndex):
+    def __init__(self, code,params, rsquared, pvalues, initialStartIndex,variance):
         self.params = params
         self.code = code
         self.rsquared = rsquared
         self.pvalues = pvalues
         self.startIndex = initialStartIndex
+        self.variance = variance
 
 ####################################################################
 
@@ -56,6 +57,23 @@ class model_selection():
 	def __init__(self,model_List):
 		self.model_list = model_List
 
+	def calculte_oneThirdVarince(self):
+		varianceList = []
+		for model in self.model_list:
+			varianceList.append(model.variance)
+		varianceList.sort()
+		self.one_third_variance = varianceList[int((float(1)/3)*len(varianceList))]
+		return
+
+	def calculte_oneThirdRsquare(self):
+		rsquareList = []
+		for model in self.model_list:
+			rsquareList.append(model.rsquared)
+		rsquareList.sort()
+		self.one_third_rsquare = rsquareList[int((float(2)/3)*len(rsquareList))]
+		return
+
+
 	def calculate_mean_Rsquare(self):
 		rsquareList = []
 		for model in self.model_list:
@@ -71,11 +89,14 @@ class model_selection():
 		return
 
 	def filtered_model_list(self):
-		self.calculate_mean_Rsquare()
-		self.calculate_mean_slope()
+		# self.calculate_mean_Rsquare()
+		# self.calculate_mean_slope()
+		self.calculte_oneThirdRsquare()
+		self.calculte_oneThirdVarince()
 		filtered_model_list = []
 		for model in self.model_list:
-			if model.params[1] > self.mean_slope and model.params[1] >  0 and model.rsquared> self.mean_rsquare:
+			if model.params[1] >  0 \
+				and model.variance < self.one_third_variance and model.rsquared > self.one_third_rsquare:
 				filtered_model_list.append(model)
 		return filtered_model_list
 
@@ -96,6 +117,7 @@ class model_factory():
 		self.data = data
 		pass
 
+    
 	def create_model_list(self):
 		model_list = []
 		for stock in self.stockList:
@@ -104,10 +126,10 @@ class model_factory():
 			train_X = np.arange(1, len(train_Y) + 1)
 			train_X = sm.add_constant(train_X)
 			params, rsquare, pValues = linear_regression_model_obj.fit_model(train_X, train_Y.values)
-			
+			variance =  train_Y.var()
 			initialStartIndex = len(train_X) + 1
 			
-			stock_attribute_model_obj = stock_attribute_model(stock, params, rsquare,pValues,initialStartIndex)
+			stock_attribute_model_obj = stock_attribute_model(stock, params, rsquare,pValues,initialStartIndex,variance)
 			model_list.append(stock_attribute_model_obj)
 		return model_list
 
