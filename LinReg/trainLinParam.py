@@ -89,14 +89,14 @@ class model_selection():
 		return
 
 	def filtered_model_list(self):
-		# self.calculate_mean_Rsquare()
+		self.calculate_mean_Rsquare()
 		# self.calculate_mean_slope()
 		self.calculte_oneThirdRsquare()
 		self.calculte_oneThirdVarince()
 		filtered_model_list = []
 		for model in self.model_list:
 			if model.params[1] >  0 \
-				and model.variance < self.one_third_variance and model.rsquared > self.one_third_rsquare:
+				and model.rsquared > self.mean_rsquare:
 				filtered_model_list.append(model)
 		return filtered_model_list
 
