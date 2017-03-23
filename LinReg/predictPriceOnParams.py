@@ -35,15 +35,16 @@ def set_params():
     g.tc = 60 
     g.t = 0                # 记录回测运行的天数
     g.if_trade = False   
-    g.initial_start_index = 651
+    g.initial_start_index = 650
     g.candidate_pool_set = False
+    g.get_stocks = False
     # 设置调仓天数
         
 
 def before_trading_start(context):
-    if not g.candidate_pool_set:
+    if not g.candidate_pool_set :
         read_stocks_linReg_obj = read_stocks_linReg()
-        read_stocks_linReg_obj.read_from_pickle_file('linReg_data.pkl',context)
+        read_stocks_linReg_obj.read_from_pickle_file(context)
     
     if g.t%g.tc==0:
         #每g.tc天，交易一次
@@ -51,20 +52,8 @@ def before_trading_start(context):
         # 设置手续费与手续费
         set_slip_fee(context) 
         select_stocks(context)
-        
     g.t+=1
 
-# def daily_operation(context):
-#     candidates_stock = list(get_all_securities(['stock']).index)
-#     daily_mission_select_stock_obj = process_stocks(candidates_stock)
-#     context.wanted_stocks = daily_mission_select_stock_obj.get_proper_stocks(context)
-#     write_file('stockCandidates_linRegOnPrice', str(context.wanted_stocks), append=False)
-    
-#     fetch_price_data_obj = fetch_price_data(context.wanted_stocks)
-    
-#     historical_price = fetch_price_data_obj.get_train_data_model_stocks()
-    
-#     write_file('linReg_price.csv', historical_price.to_csv(), append=False)
 
 
 
@@ -124,7 +113,7 @@ class read_stocks_linReg():
     def __init__(self):
         pass
     
-    def read_from_pickle_file(self,fileName,context):
+    def read_from_pickle_file(self,context):
         g.candidate_pool_set = True
         rd_code = read_file('linReg_data_code')
         rd_code = eval(rd_code)
@@ -193,57 +182,7 @@ class select_top_five_stocks():
   
         
         
-# class process_stocks():
-#     def __init__(self, stockList):
-#         self.stockList = stockList
-#         pass
-    
-#     def get_proper_stocks(self, context, deltaday = 600):
-        
-#         def remove_unwanted_stocks():
-#             current_data = get_current_data()
-#             return [stock for stock in self.stockList 
-#                 if not current_data[stock].is_st  and (current_data[stock].name  is None or
-#                 ( '*' not in current_data[stock].name 
-#                 and '退' not in current_data[stock].name)) 
-#                 and  not current_data[stock].paused]
 
-#         def fun_delNewShare(filtered_stocks):
-#             deltaDate = context.current_dt.date() - dt.timedelta(deltaday)
-#             tmpList = []
-#             for stock in filtered_stocks:
-#                 if get_security_info(stock).start_date < deltaDate:
-#                     tmpList.append(stock)
-#             return tmpList
-            
-                    
-                
-#         def find_growing_stocks(filtered_stocks):
-#             query_str = query(indicator.code).filter(indicator.code.in_(filtered_stocks) ,\
-#                     valuation.pe_ratio < 400,  \
-#                     valuation.pe_ratio > 0, \
-#                     balance.total_owner_equities/balance.total_sheet_owner_equities > 0.6,\
-#                     indicator.inc_operation_profit_annual > g.operating_revenue_growth_threshold)
-#             df = get_fundamentals(query_str)
-#             promising_operating_growth_stocks = list(df['code'].values)
-#             return promising_operating_growth_stocks;
-            
-#         unwanted_stocks = remove_unwanted_stocks()
-#         non_new_stocks = fun_delNewShare(unwanted_stocks)
-#         promising_stocks = find_growing_stocks(non_new_stocks)
-#         return promising_stocks
-        
-    
-
-# class fetch_price_data():
-#     def __init__(self, stockList):
-#         self.stockList = stockList
-        
-#     def get_train_data_model_stocks(self):
-#         historical_data = history(g.history_data_range, unit='1d', field='close', security_list=self.stockList, df=True, \
-#                 skip_paused=True, fq='pre')
-#         return historical_data
-        
     
     
     
