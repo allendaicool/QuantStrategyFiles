@@ -1,7 +1,30 @@
-trainLinParam.py 此文件在投资研究中运行，  筛选出三年历史价格走势呈上升趋势（即训练出的股票linear regression 模型 slope > 0）的股票， 并且模型 r square 要大于所有模型rsquare 的均值。  y ＝ ax ＋ b  x是第几天， y是价格
+trainLinParam.py 此文件在投资研究中运行（以景号作为分隔符 把代码复制进python notebook 的单元格），  筛选出三年历史价格走势呈上升趋势（即训练出的股票linear regression 模型 slope > 0）的股票， 并且模型 r square 要大于所有模型rsquare 的均值。  y ＝ ax ＋ b  x是第几天， y是价格。   这个过程会产生出slope， coefficient， 和startindex 三个文件， 此三个文件将会在predictPriceOnParams.py 中被调用
 
 
-predictPriceOnParams.py  这是个策略文件，注释掉的部分是 （a) 预选股票代码 并且获取往前三年的历史收盘价并且保存到csv 文件中  这个csv 文件将会在投资研究中被用来训练历史价格的linear regression，没有注释掉的是 (b)实际策略
+predictPriceOnParams.py  这是个策略文件，   实际策略
 
 
-(a) 预选部分 注意起始日期的选取， 起始日期 如果是2016年3月16日， 就意味着选取2016年3月16日往前三年的股票价格
+LinearReg_pick_stock_find_price.py   :  预选股票代码 并且获取往前三年的历史收盘价并且保存到csv 文件中，  这个csv 文件将会在投资研究中被用来训练历史价格的linear regression，
+
+
+
+预选部分 注意起始日期的选取， 起始日期 如果是2016年3月16日， 就意味着选取2016年3月16日（不包括本日）往前三年的股票价格
+
+
+
+所以 运行顺序：
+
+
+    例如： 我们要从2016年3月1日（非双休日）开始运行linear regression 
+   1）  LinearReg_pick_stock_find_price.py  选定起始日期 2016年3月1日   获得价格数据
+
+   2）  运行 trainLinParam.py 投资研究
+
+   3） 运行predictPriceOnParams.py
+
+
+
+
+
+
+
