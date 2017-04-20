@@ -10,6 +10,7 @@ import datetime as dt
 import talib as tl
 from datetime import datetime
 from sets import Set
+from jqdata import *
 
 # 初始化函数，设定要操作的股票、基准等等
 def initialize(context):
@@ -26,19 +27,60 @@ def initialize(context):
     g.N = 8
     g.weight = 1/(float)(g.N)
     g.ma_lengths = [5,10, 20, 30]
-    g.in_trend_days = 3
+    g.in_trend_days = 5
+    g.Shanghai = []
+    g.portofolio_value = []
+    g.firstDay = True
+    g.high_weight_stocks = ['601318.XSHG', '600036.XSHG','600016.XSHG', '601166.XSHG',
+        '600000.XSHG', '600030.XSHG', '000002.XSHE', '600837.XSHG', '600519.XSHG', '000651.XSHE',
+        '601328.XSHG', '600887.XSHG', '601288.XSHG', '601601.XSHG','601398.XSHG']
+    g.MF_period = 3
+    set_slip_fee(context)
+    g.MACD_period = 90
+
+def set_slip_fee(context):
+    # 将滑点设置为0
+    set_slippage(PriceRelatedSlippage(0.002))
+    # 根据不同的时间段设置手续费
+    dt=context.current_dt
+    log.info(type(context.current_dt))
     
-    
+    if dt>datetime(2013,1, 1):
+        set_commission(PerTrade(buy_cost=0.0003, sell_cost=0.0013, min_cost=5)) 
+        
+    elif dt>datetime(2011,1, 1):
+        set_commission(PerTrade(buy_cost=0.001, sell_cost=0.002, min_cost=5))
+            
+    elif dt>datetime(2009,1, 1):
+        set_commission(PerTrade(buy_cost=0.002, sell_cost=0.003, min_cost=5))
+                
+    else:
+        set_commission(PerTrade(buy_cost=0.003, sell_cost=0.004, min_cost=5))
+
+
+
+
 def daily_operation(context):
     #initialize_context_variable(context)
+    market_risk_control_obj = market_risk_control()
+    avoid_market_risk = market_risk_control_obj.avoid_market_rist_MF(g.high_weight_stocks,context)
+    #avoid_market_risk = False
+    if avoid_market_risk:
+        context.selected_stocks = []
+        g.update = True
+        g.count == 0
+        return
+    
     if g.count == 0:
         candidates = list(get_all_securities(['stock']).index)
         process_stocks_obj = process_stocks(candidates)
         preprocessed_stocks = process_stocks_obj.get_proper_stocks(context)
         FFscore_module_obj = FFscore_module()
         good_stocks = FFscore_module_obj.calculate_FFScore(preprocessed_stocks)
-        stock_risk_control_obj = stock_risk_control()
-        good_stocks = stock_risk_control_obj.get_in_trends(good_stocks,context)
+        MACD_filerting_obj = MACD_filerting()
+        good_stocks = MACD_filerting_obj.filter_by_MACD(good_stocks)
+        #stock_risk_control_obj = stock_risk_control()
+        #good_stocks = stock_risk_control_obj.get_in_trends(good_stocks,context)
         
         analyze_stock_based_on_pb_obj = analyze_stock_based_on_pb()
         stocksList = analyze_stock_based_on_pb_obj.ordered_by_pb_ratio(good_stocks)
@@ -49,7 +91,73 @@ def daily_operation(context):
         g.count = g.count + 1
         g.count = g.count% g.repeat_days
         g.update = False
+
+
+class MACD_filerting():
+    def __init__(self):
+        pass
+    
+    def filter_by_MACD(self, stockList):
+        price_df = self.get_close_prices_MACD(stockList)
+        filerted_stockList = []
+        for column in price_df:
+            price_array = price_df[column].dropna()
+            decline = self.MACD_sell(price_array.values)
+            if not decline:
+                filerted_stockList.append(column)
+        return filerted_stockList
         
+    def check_in_reverse_order(self,array_sample):
+        for i in range(len(array_sample) - 1):
+            #or abs((array_sample[i+1] -  array_sample[i])/array_sample[i]) < 0.1:
+            if array_sample[i] <= array_sample[i+1] :
+                return False
+        return True
+        
+    def MACD_sell(self, close_prices_MACD_array,fastperiod=12, slowperiod=26, signalperiod=9):
+        macdDIFF,macdDEA , hist = self.MACD_CN(close_prices_MACD_array, fastperiod, slowperiod, signalperiod) 
+        for i in range(1,4):
+            if math.isnan(hist[-i]):
+                return False
+        macdDIFF = macdDIFF[-3:]
+        macdDEA = macdDEA[-3:]
+        hist  = hist[-3:]
+        if self.check_in_reverse_order(hist):
+            return True
+        return False
+        
+    def MACD_CN(self,close, fastperiod, slowperiod, signalperiod) :
+    ##MA_Type: 0=SMA, 1=EMA, 2=WMA, 3=DEMA, 4=TEMA, 5=TRIMA, 6=KAMA, 7=MAMA, 8=T3 (Default=SMA)
+        macdDIFF, macdDEA, macd = tl.MACDEXT(close, fastperiod=fastperiod, fastmatype=1, slowperiod=slowperiod, slowmatype=1, signalperiod=signalperiod, signalmatype=1)
+        macd = macd * 2
+        return macdDIFF , macdDEA, macd
+        
+    def get_close_prices_MACD(self,stockList) :
+        #day_of_week = context.current_dt.weekday()
+        price_df = history(g.MACD_period, unit='1d', field='close', security_list=stockList, df=True, skip_paused=False, fq='pre')
+        return price_df
+        
+        
+        
+class market_risk_control():
+    def __init__(self):
+        return          
+    
+    def avoid_market_rist_MF(self,stock_list, context):
+        delta = relativedelta.relativedelta(days=-1)
+        dt = context.current_dt + delta
+        money_df = get_money_flow(stock_list,  end_date=dt, fields=['net_amount_main', 'sec_code'], count= g.MF_period)
+        money_series =  money_df['net_amount_main']
+        print ('money dfis ', money_df)
+        money_df.drop('sec_code',1, inplace=True)
+        days_money_trend = []
+        print ('money dfis ', money_df)
+        for i in range(g.MF_period):
+            days_money_trend.append(money_series.iloc[i::g.MF_period].sum())
+        for money_flow in days_money_trend:
+            if money_flow > 0:
+                return False
+        return True
 
 class stock_risk_control():
     def __init__(self):
@@ -304,7 +412,18 @@ class analyze_stock_based_on_pb():
         print df.head()['pb_ratio']
         return stocks
         
+def after_trading_end(context):
+    
+    if not g.firstDay:
+        shanghai_df = attribute_history('000001.XSHG', 1, unit='1d',\
+            fields=['close'],\
+            skip_paused=True, df=True, fq='pre')
+        g.Shanghai.append(shanghai_df['close'][0])
         
+    else:
+        g.firstDay = False
+    g.portofolio_value.append(context.portfolio.portfolio_value)
+    print ('the coeffient ratio is ', np.corrcoef(g.Shanghai, g.portofolio_value[:-1])[0][1])
 # 每个单位时间(如果按天回测,则每天调用一次,如果按分钟,则每分钟调用一次)调用一次
 def handle_data(context, data):
     if g.update :
