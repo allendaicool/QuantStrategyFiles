@@ -1,4 +1,3 @@
-# 导入聚宽函数库
 import jqdata
 import scipy.stats as stats
 import numpy as np
@@ -21,13 +20,17 @@ def initialize(context):
     set_benchmark('000300.XSHG')
     # 开启动态复权模式(真实价格)
     set_option('use_real_price', True)
-    set_slippage(PriceRelatedSlippage(0.01))
+    set_slippage(FixedSlippage(0.02))
     # 输出内容到日志 log.info()
     log.info('初始函数开始运行且全局只运行一次')
     # 过滤掉order系列API产生的比error级别低的log
     # log.set_level('order', 'error')
     g.back_test_period = 30
+    context.stop_loss = False
     g.day_count = 0
+    g.market_index = '000001.XSHG'
+    g.stop_loss_pct = -0.03
+    g.recover_pct = 0.01
     g.stockList = None
     g.adfTest_period = 1500
     g.alpha_index = 2
@@ -69,32 +72,21 @@ class stock_cointergration():
         df= history(1, unit='1m', field='close', security_list=[stockX, stockY], df=True, skip_paused=False, fq='pre')
         stockX_price = df[stockX][0]
         stockY_price = df[stockY][0]
-        spread = stockY_price - stockX_price*beta
-        # spread = (float)(spread - spread_mean)/spread_std
-        # if spread > 2 and spread < 4:
-        #     if stockY in context.portfolio.positions:
-        #         order_target(stockY, 0)
-        #     target_value = context.portfolio.portfolio_value
-        #     order_target_value(stockX, target_value)
-        # if spread < -2 and spread > -4:
-        #     if stockX in context.portfolio.positions:
-        #         order_target(stockX, 0)
-        #     target_value = context.portfolio.portfolio_value
-        #     order_target_value(stockY, target_value)
-        # if spread > 4 or spread < -4 or spread < 0.3 and spread > -0.3:
-        #     order_target(stockX, 0)
-        #     order_target(stockY, 0)
-        if spread > 2*spread_std and spread < 4*spread_std:
+        spread = stockY_price - stockX_price*beta - pair[g.alpha_index]
+        for st in context.portfolio.positions:
+            if st != stockX and  st != stockY:
+                order_target(st, 0)
+        if spread > 1.6*spread_std and spread < 4*spread_std:
             if stockY in context.portfolio.positions:
                 order_target(stockY, 0)
             target_value = context.portfolio.portfolio_value
             order_target_value(stockX, target_value)
-        if spread < -2*spread_std and spread > -4*spread_std:
+        if spread < -1.6*spread_std and spread > -4*spread_std:
             if stockX in context.portfolio.positions:
                 order_target(stockX, 0)
             target_value = context.portfolio.portfolio_value
             order_target_value(stockY, target_value)
-        if spread > 4*spread_std or spread < -4*spread_std or spread < 0.3*spread_std and spread > -0.3*spread_std:
+        if spread > 4*spread_std or spread < -4*spread_std or spread < 0.1*spread_std and spread > -0.1*spread_std:
             order_target(stockX, 0)
             order_target(stockY, 0)
             
@@ -114,6 +106,8 @@ class stock_cointergration():
                 combined_df = combined_df.dropna()
                 if len(combined_df) < 500:
                     continue
+                stock2_price = combined_df[stock2]
+                stock1_price = combined_df[stock1]
                 model = pd.ols(y=stock2_price, x=stock1_price, intercept=True)   # perform ols on these two stocks
                 spread = stock2_price - stock1_price*model.beta['x']
                 spread = spread.dropna()
@@ -147,14 +141,11 @@ class market_risk_control():
 def before_market_open(context):
     # 输出运行时间
     log.info('函数运行时间(before_market_open)：'+str(context.current_dt.time()))
-    
-    
-    # 给微信发送消息（添加模拟交易，并绑定微信生效）
-    send_message('美好的一天~')
-
+    context.risk_management_obj = risk_management()
+    context.open_time = dt.datetime(context.current_dt.year, context.current_dt.month,context.current_dt.day,9,30)
     # 要操作的股票：平安银行（g.为全局变量）
     #801780 HY008
-    #stockList = get_industry_stocks('C25', date=None)
+    #stockList = get_industry_stocks('C25', date='2017-01-01')
     #print ('stockList is ', stockList)
     
     # stockList = ['000059.XSHE', '000637.XSHE', '000698.XSHE', '000723.XSHE', '000819.XSHE', '000835.XSHE', 
@@ -183,7 +174,58 @@ def market_open(context):
     #         order_target(stock, 0)
     # else:
     context.stock_cointergration_obj.Do_hedge(context.stock_pair, context)
- 
+    context.risk_management_obj.market_risk_control(context)
+    
+class risk_management:
+    def __init__(self):
+        pass
+    
+    def find_index_change_pct(self, mintute):
+        h = attribute_history(g.market_index, 2, unit= str(mintute) + 'm',
+            fields=['close'],
+            skip_paused=True, df=True, fq='pre')
+        return h['close'][-1]/h['close'][0] - 1,  h['close'][-1]
+    
+    def determine_stop_loss(self, pct_change):
+        if pct_change  <  g.stop_loss_pct:
+            return True
+        return False
+    
+    def sell_all_stocks(self,context):
+        context.selected_stocks = []
+        for p in context.portfolio.positions:
+            context.selected_stocks.append(p)
+            o = order_target(p, 0)
+    
+    def buy_in_all_stocks(self,selected_stocks, context):
+        target_value =  context.portfolio.portfolio_value
+        for p in selected_stocks:
+            o = order_target_value(p, target_value)
+            
+    def determine_buy_in(self,last_index):
+        h = attribute_history(g.market_index, 1, unit= '1m',fields=['close'],skip_paused=True, df=True, fq='pre')
+        current_index = h['close'][-1]
+        if current_index/last_index - 1 > g.recover_pct:
+            return True 
+        return False
+        
+    def market_risk_control(self,context):
+        if context.current_dt > context.open_time :
+            timedelta = context.current_dt - context.open_time
+            minutes = timedelta.seconds/60 
+            if minutes > 120 :
+                minutes -= 90
+            pct_change, index_value = self.find_index_change_pct(minutes)
+            if self.determine_stop_loss(pct_change):
+                self.sell_all_stocks(context)
+                context.stop_loss = True
+                context.stop_loss_index_value = index_value
+                return
+        
+        if context.stop_loss : 
+            if self.determine_buy_in(context.stop_loss_index_value):
+                self.buy_in_all_stocks(context.selected_stocks, context)
+
 ## 收盘后运行函数  
 def after_market_close(context):
     log.info(str('函数运行时间(after_market_close):'+str(context.current_dt.time())))
@@ -192,4 +234,6 @@ def after_market_close(context):
     for _trade in trades.values():
         log.info('成交记录：'+str(_trade))
     log.info('一天结束')
+    
+    
     log.info('##############################################################')
