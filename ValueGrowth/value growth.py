@@ -66,7 +66,7 @@ def market_open(context):
         #for i in range(buy_stock_number):
             #order_target_value(buyStockArr[i], cash_per_stock)
         for i in range(buy_stock_number):
-            order_target_value(buyStockArr[i], cash_per_stock)
+            order_target_value(buyStockArr[len(buyStockArr) - 1- i], cash_per_stock)
             
     log.info('调整后所拥有的positions: ' + str(context.portfolio.positions))
     
