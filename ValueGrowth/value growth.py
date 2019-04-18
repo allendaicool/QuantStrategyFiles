@@ -53,7 +53,9 @@ def market_open(context):
     # 计算卖出后拥有股票的数量
     current_stock_number = len(context.portfolio.positions)
     buy_stock_number = min(holding_number - current_stock_number, len(buyStockArr))
-    
+    log.info('buyStockArr: ' + str(buyStockArr))
+    log.info('sellStockArr: ' + str(sellStockArr))
+    log.info('current_stock_number: ' + str(current_stock_number))
     # 如果需要买入，则买入, 买入逻辑
     if buy_stock_number > 0:
         # portfolio的总cash
